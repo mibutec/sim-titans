@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Item Selector</title>
+  <style>
+    #modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #modal {
+      background: white;
+      padding: 1em;
+      max-height: 80vh;
+      overflow-y: auto;
+      max-width: 90vw;
+      border-radius: 8px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 1em;
+    }
+    th, td {
+      padding: 0.5em;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+    button {
+      padding: 0.3em 0.6em;
+    }
+  </style>
+</head>
+<body>
+
+<script src="document-reader.js"></script>
+<script src="shop-titans.js"></script>
+<script type="module">
+  import { h, render } from 'https://esm.sh/preact@10.19.2';
+  import { useState, useEffect } from 'https://esm.sh/preact@10.19.2/hooks';
+  import htm from 'https://esm.sh/htm@3.1.1';
+  const html = htm.bind(h);
+
+  // ---------- Haupt-Komponente ----------
+  function ItemSelector({ itemsMap, defaultFilter, resolve }) {
+    const [level, setLevel] = useState("");
+    const [type, setType] = useState("");
+    const [filtered, setFiltered] = useState([]);
+
+    const allTypes = [...new Set(Array.from(itemsMap.values()).map(item => item.type))].sort();
+
+    useEffect(() => {
+      applyFilter();
+    }, [level, type]);
+
+    function resetFilter() {
+      setType(null);
+      setLevel(null);
+    }
+
+    function applyFilter() {
+      const results = Array.from(itemsMap.entries()).filter(([_, item]) => {
+        if (level && item.level != Number(level)) return false;
+        if (type && item.type !== type) return false;
+        return defaultFilter(item);
+      });
+      setFiltered(results);
+    }
+
+    return html`
+        <div id="modal-backdrop">
+          <div id="modal">
+            <h2>Item auswählen</h2>
+            <label>
+              Level:
+              <input type="number" value=${level} onChange=${e => setLevel(e.target.value)} />
+            </label>
+            <label>
+              Type:
+              <select value=${type} onChange=${e => setType(e.target.value)}>
+                <option value="">(alle)</option>
+                ${allTypes.map(t => html`<option value=${t}>${t}</option>`)}
+              </select>
+            </label>
+            <button onClick=${() => resetFilter()}>Reset</button>
+            <button onClick=${() => resolve(null)}>Abort</button>
+
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Type</th><th>Level</th><th>ATK</th><th>DEF</th><th>HP</th><th>EVA</th><th>CRIT</th><th></th></tr>
+              </thead>
+              <tbody>
+                ${filtered.map(([id, item]) => html`
+                  <tr>
+                    <td>${item.name}</td>
+                    <td>${item.type}</td>
+                    <td>${item.level}</td>
+                    <td>${item.atk}</td>
+                    <td>${item.def}</td>
+                    <td>${item.hp}</td>
+                    <td>${item.eva}</td>
+                    <td>${item.crit}</td>
+                    <td><button onClick=${() => resolve(id)}>Wählen</button></td>
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+  }
+
+  function App() {
+    const [database, setDatabase] = useState(null);
+    const [showSelector, setShowSelector] = useState(false);
+
+    useEffect(() => {
+      async function loadData() {
+        const db = await Database.fromSpreadsheet();
+        setDatabase(db);
+      }
+      loadData();
+    }, []);
+
+    if (!database) {
+      // Zeige z.B. Ladeanzeige, bis Daten da sind
+      return html`<div>Loading...</div>`;
+    }
+
+    return html`
+    <div>
+      <button id="dabutton" onClick=${() => setShowSelector(true)}>Select</button>
+      ${showSelector
+            ? html`<${ItemSelector} itemsMap=${database.items} defaultFilter=${() => true} />`
+            : null}
+    </div>
+  `;
+  }
+
+  const hero = { slot1: null };
+  render(html`<${App} />`, document.body);
+</script>
+</body>
+</html>
