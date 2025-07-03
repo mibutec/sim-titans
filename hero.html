@@ -83,7 +83,7 @@
 
       return html`
     <div>
-      <${HeroTable} heroes=${[]} />
+      <${HeroTable} heroes=${[]} heroClassesMap=${database.heroClasses}/>
       <button id="dabutton" onClick=${() => setShowSelector(true)}>Select</button>
       ${showSelector
               ? html`<${ItemSelector} itemsMap=${database.items} defaultFilter=${() => true} />`

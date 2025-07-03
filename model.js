@@ -49,8 +49,10 @@ class Datasheet {
 
 export class HeroClass {
     constructor(data, row, col, color, isPromoted) {
+        const rawName = data.get(row, col).split(/\r?\n/)[0]
+        this.id = toCamelCase(rawName);
+        this.name = rawName
         this.color = color
-        this.name = data.get(row, col).split(/\r?\n/)[0]
         this.critChance = data.getPercent(row + 1, col + 3)
         this.critMultiplier = data.getNumber(row + 2, col + 3)
         this.threat = data.getNumber(row + 3, col + 3)
@@ -79,15 +81,19 @@ export class HeroClass {
     }
 
     static createHeroClasses(data) {
-        const classes = new Array();
+        const classes = new Map();
 
         for (let i = 0; i < 7; i++) {
-            classes.push(new HeroClass(data, 20 * i, 1, "red", false))
-            classes.push(new HeroClass(data, 20 * i, 9, "green", false))
-            classes.push(new HeroClass(data, 20 * i, 17, "blue", false))
+            const redClass = new HeroClass(data, 20 * i, 1, "red", false);
+            const greenClass = new HeroClass(data, 20 * i, 9, "green", false);
+            const blueClass = new HeroClass(data, 20 * i, 17, "blue", false);
+
+            classes.set(redClass.id, redClass);
+            classes.set(greenClass.id, greenClass);
+            classes.set(blueClass.id, blueClass);
         }
 
-        return classes
+        return classes;
     }
 }
 
@@ -102,7 +108,7 @@ export class Item {
         this.def = data.get(index, "DEF") || ""
         this.hp = data.get(index, "HP") || ""
         this.eva = data.get(index, "EVA") || ""
-        this.crit = data.get(index, "CRIT") || ""
+        this.critChance = data.get(index, "CRIT") || ""
     }
 
     static createItems(data) {
@@ -121,7 +127,6 @@ export class Database {
     constructor(heroClasses, items) {
         this.heroClasses = heroClasses;
         this.items = items;
-        this.qualityFactors = [1, 1.25, 1.5, 2, 7 / 3]
     }
 
     static async fromSpreadsheet() {
@@ -134,20 +139,96 @@ export class Database {
     }
 }
 
+export const Quality = Object.freeze({
+    NORMAL: { name: 'normal', factor: 1 },
+    UNCOMMON: { name: 'uncommon', factor: 1.25 },
+    RARE: { name: 'rare', factor: 1.5 },
+    EPIC: { name: 'epic', factor: 2 },
+    LEGENDARY: { name: 'legendary', factor: 7 / 3 }
+});
+
+class Equipment {
+    constructor(item, element, ghost, quality) {
+        this.item = item;
+        this.element = element;
+        this.ghost = ghost;
+        this.quality = quality;
+    }
+
+    getAtk() {
+        return this.item.atk * this.quality.factor;
+    }
+
+    getDef() {
+        return this.item.def * this.quality.factor;
+    }
+
+    getHp() {
+        return this.item.hp * this.quality.factor;
+    }
+
+    getEva() {
+        return this.item.eva;
+    }
+
+    getCritChance() {
+        return this.item.crit * this.getAtk();
+    }
+}
+
 export class Hero {
     constructor(heroClass) {
         this.heroClass = heroClass
         this.isPromoted = false
+        this.name = "My Hero"
         this.level = 1
-        this.items = new Array()
+        this.equipments = new Array()
         for (let i = 0; i < 6; i++) {
             const item = {
                 item: null,
                 element : null,
                 ghost: null
             }
-            this.item.push(item)
+            this.equipments.push(item)
         }
+    }
+
+    getStat(statName, includeLevel = true) {
+        let value = includeLevel ? this.heroClass[statName] * this.level : this.heroClass[statName];
+
+        for (const equipment of this.equipments) {
+            if (equipment && equipment.item) {
+                const methodName = `get${statName.charAt(0).toUpperCase() + statName.slice(1)}`;
+                if (typeof equipment[methodName] === 'function') {
+                    value += equipment[methodName]();
+                }
+            }
+        }
+        return value;
+    }
+
+    getAtk() {
+        return this.getStat('atk');
+    }
+
+    getDef() {
+        return this.getStat('def');
+    }
+
+    getHp() {
+        return this.getStat('hp');
+    }
+
+    getEva() {
+        return this.getStat('eva', false);
+    }
+
+    getCritChance() {
+        return this.getStat('critChance', false);
+    }
+
+    getCritDmg() {
+        return this.heroClass.critMultiplier * this.getAtk();
     }
 }
 
