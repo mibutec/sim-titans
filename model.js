@@ -21,6 +21,7 @@ class Datasheet {
         const spreadsheetId = "1WLa7X8h3O0-aGKxeAlCL7bnN8-FhGd3t7pz2RCzSg8c";
 
         const url = isLocal ? sheetName + '.json' : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+        console.log(url)
         const response = await fetch(url);
         const text = await response.text();
         const json = JSON.parse(text.substr(47).slice(0, -2));
@@ -34,7 +35,10 @@ class Datasheet {
     }
 
     getNumber(row, column) {
-        const str = this.get(row, column).replace(/\D/g,'')
+        const cellval = this.get(row, column)
+        if (typeof cellval === 'number') return cellval;
+
+        const str = cellval.replace(/\D/g,'')
         return Number(str)
     }
 
@@ -97,6 +101,38 @@ export class HeroClass {
     }
 }
 
+export class Skill {
+    constructor(data, index, isUpgrade = false) {
+        this.rarity = data.get(index, "Rarity") || "Normal";
+        this.classes = data.get(index, "Classes") || "";
+        this.name = data.get(index, "Name");
+        this.id = toCamelCase(this.name);
+        console.log(this.id)
+        this.effect = data.get(index, "Skill Effect(s)") // || throw new Error ("Skill effect missing in " + this.name);
+        this.requiredElement = data.getNumber(index, 4)
+        this.tiers = new Array()
+        if (!isUpgrade) {
+            for (let i = 1; i <= 3; i++) {
+                const tier = new Skill(data, index + i, true)
+                this.tiers.push(tier);
+            }
+        }
+    }
+
+    static createSkills(data) {
+        const skills = new Map();
+
+        for (let i = 0; i < data.size(); i++) {
+            if (data.getNumber(i, "Tier") == 1) {
+                const skill = new Skill(data, i)
+                skills.set(skill.id, skill);
+            }
+        }
+
+        return skills;
+    }
+}
+
 export class Item {
     constructor(data, index) {
         const nameRaw = data.get(index, "Name")
@@ -134,7 +170,10 @@ export class Database {
         const heroClasses = HeroClass.createHeroClasses(heroClassData)
         const itemData = await Datasheet.load("Blueprints")
         const items = Item.createItems(itemData)
+        const skillData = await Datasheet.load("Skills")
+        const skills = Skill.createSkills(skillData)
 
+        console.log(skills)
         return new Database(heroClasses, items);
     }
 }
